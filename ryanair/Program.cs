@@ -31,17 +31,79 @@ namespace ryanair
             else
                 foreach (string json in File.ReadAllLines(airportJsonFile))
                     airports.Add(JsonConvert.DeserializeObject<Airport>(json));
+            
             bool[,] relations = GetRelations(airports);
+            //MatrixToHTML(relations, "relations.html", airports);
             double[,] distances = GetDistances(airports, relations);
-            double[,] prices = GetPrices(airports, relations);
-            Grafo<Airport> grafo = new Grafo<Airport>();//GenerateGrafoByListAndRel(airports, relations);
+            //MatrixToHTML(distances, "distances.html", airports);
+            //double[,] prices = GetPrices(airports, relations);
+            Grafo<Airport> grafo = new Grafo<Airport>();
             grafo.GenerateGrafoByListAndRel(airports, relations);
             grafo.Dijkstra(grafo.NodeList[0], distances, null);
             List<Node<Airport>> shortestRout = grafo.GetShortestRoute(grafo.NodeList[49]);
-
+            Node<Airport> treeRootPrim = new Node<Airport> { Element = grafo.NodeList[0].Element };
+            grafo.Prim(treeRootPrim, distances, null);
+            Node<Airport> treeRootKruscal = grafo.Kruscal(distances);
             Console.ReadLine();
         }
 
+        public static void MatrixToHTML(double[,] matrix, string htmlName, List<Airport> airport)
+        {
+            string html = "<style> td{width:20px;}table, th, td {border: 1px solid black;} </style><table>";
+            for (int i = -1; i < matrix.GetLength(0); i++)
+            {
+                html += "<tr>";
+                for (int j = -1; j < matrix.GetLength(1); j++)
+                {
+                    if (i < 0)
+                    {
+                        if (j >= 0)
+                            html += "<td title='"+ airport[j].ToString()+ "'>" + airport[j].iataCode + "</td>";
+                        else
+                            html += "<td></td>";
+                    }
+                    else
+                    {
+                        if(j<0)
+                            html += "<td title='" + airport[i].ToString() + "'>" + airport[i].iataCode + "</td>";
+                        else
+                            html += "<td>" + matrix[i, j].ToString() + "</td>";
+                    }
+                }
+                html += "</tr>";
+            }
+            html += "</table>";
+            File.WriteAllText(Path.Combine(Directory.GetCurrentDirectory(), htmlName), html);
+        }
+
+        public static void MatrixToHTML(bool[,] matrix, string htmlName, List<Airport> airport)
+        {
+            string html = "<style> td{width:20px;}table, th, td {border: 1px solid black;} </style><table>";
+            for (int i = -1; i < matrix.GetLength(0); i++)
+            {
+                html += "<tr>";
+                for (int j = -1; j < matrix.GetLength(1); j++)
+                {
+                    if (i < 0)
+                    {
+                        if (j >= 0)
+                            html += "<td title='" + airport[j].ToString() + "'>" + airport[j].iataCode + "</td>";
+                        else
+                            html += "<td></td>";
+                    }
+                    else
+                    {
+                        if (j < 0)
+                            html += "<td title='" + airport[i].ToString() + "'>" + airport[i].iataCode + "</td>";
+                        else
+                            html += "<td>" + matrix[i, j].ToString() + "</td>";
+                    }
+                }
+                html += "</tr>";
+            }
+            html += "</table>";
+            File.WriteAllText(Path.Combine(Directory.GetCurrentDirectory(), htmlName), html);
+        }
 
         public static Grafo<Airport> GenerateGrafoByListAndRel(List<Airport> airports, bool[,] relations)
         {
@@ -135,9 +197,15 @@ namespace ryanair
         public static double DistanceByHarvesine(Coordinates p1, Coordinates p2)
         {
             int r = 6378;
-            double x = Convert.ToSingle(Math.PI / 180) * float.Parse(p1.latitude) - float.Parse(p2.latitude);
-            double y = Convert.ToSingle(Math.PI / 180) * float.Parse(p1.longitude) - float.Parse(p2.longitude);
-            double a = Math.Pow(Math.Sin(x / 2), 2) + Math.Cos(float.Parse(p1.latitude)) * Math.Cos(float.Parse(p2.latitude)) * Math.Pow(Math.Sin(y / 2), 2);
+            double rad = Convert.ToSingle(Math.PI / 180);
+            double p1x = rad * float.Parse(p1.latitude);
+            double p1y = rad * float.Parse(p1.longitude);
+            double p2x = rad * float.Parse(p2.latitude);
+            double p2y = rad * float.Parse(p2.longitude);
+
+            double x = Math.Abs(p1x-p2x);
+            double y = Math.Abs(p1y-p2y);
+            double a = Math.Pow(Math.Sin(x / 2), 2) + Math.Cos(p1x) * Math.Cos(p2x) * Math.Pow(Math.Sin(y / 2), 2);
             return Math.Abs(2 * r * Math.Asin(Math.Sqrt(a)));
         }
 
@@ -186,8 +254,8 @@ namespace ryanair
                 List<string> auxRoutes = new List<string>();
                 foreach (string route in airport.routes)
                 {
-                    if (route.Contains("airport"))
-                        auxRoutes.Add(route.Replace("airport:", ""));
+                    if (route.Contains("airport:"))
+                        auxRoutes.Add(route.Substring(8,3));
                 }
                 airport.routes = auxRoutes;
                 airportList.Add(airport);
@@ -208,7 +276,7 @@ namespace ryanair
                     return reader.ReadToEnd();
                 }
             }
-            catch (Exception) { return null; }
+            catch (Exception e) {return null;}
         }
     }
 
